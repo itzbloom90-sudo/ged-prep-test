@@ -15,17 +15,17 @@ const SUBJECTS = {
   rla: {
     label: "Reasoning Through Language Arts",
     minutes: 150, passScore: 145, collegeReady: 165, collegeCredit: 175,
-    sections: [ { key:"rla", label:"Reading & Language", count:8, calculator:false } ]
+    sections: [ { key:"rla", label:"Reading & Language", count:8, calculator:false } ] // pool: 16
   },
   science: {
     label: "Science",
     minutes: 90, passScore: 145, collegeReady: 165, collegeCredit: 175,
-    sections: [ { key:"science", label:"Science Reasoning", count:10, calculator:false } ]
+    sections: [ { key:"science", label:"Science Reasoning", count:10, calculator:false } ] // pool: 20
   },
   social_studies: {
     label: "Social Studies",
     minutes: 70, passScore: 145, collegeReady: 165, collegeCredit: 175,
-    sections: [ { key:"social_studies", label:"Social Studies Reasoning", count:10, calculator:false } ]
+    sections: [ { key:"social_studies", label:"Social Studies Reasoning", count:10, calculator:false } ] // pool: 17
   }
 };
 
