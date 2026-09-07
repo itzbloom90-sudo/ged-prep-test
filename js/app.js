@@ -42,10 +42,17 @@ function shuffle(arr) {
   return a;
 }
 
-function pickRandom(bankKey, count) {
+function pickRandom(bankKey, count, excludeIds = []) {
   const pool = QUESTION_BANK[bankKey] || [];
-  const shuffled = shuffle(pool);
-  return shuffled.slice(0, Math.min(count, shuffled.length));
+  const fresh = pool.filter(q => !excludeIds.includes(q.id));
+  const stale = pool.filter(q => excludeIds.includes(q.id));
+
+  // Prioritize questions NOT used last time. Only dip into the "stale" (recently used)
+  // pile if the fresh pile alone can't fill the requested count.
+  const shuffledFresh = shuffle(fresh);
+  const shuffledStale = shuffle(stale);
+  const combined = [...shuffledFresh, ...shuffledStale];
+  return combined.slice(0, Math.min(count, combined.length));
 }
 
 function formatTime(totalSeconds) {
@@ -77,6 +84,24 @@ function saveAttempt(subjectKey, attempt) {
   if (!history[subjectKey]) history[subjectKey] = [];
   history[subjectKey].push(attempt);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+}
+
+/* ---------- Last-used question tracking (per section, so back-to-back attempts don't repeat) ---------- */
+const LAST_USED_KEY = "ged_prep_test_last_used_v1";
+function getLastUsed(sectionKey) {
+  try {
+    const raw = localStorage.getItem(LAST_USED_KEY);
+    const all = raw ? JSON.parse(raw) : {};
+    return all[sectionKey] || [];
+  } catch { return []; }
+}
+function setLastUsed(sectionKey, ids) {
+  try {
+    const raw = localStorage.getItem(LAST_USED_KEY);
+    const all = raw ? JSON.parse(raw) : {};
+    all[sectionKey] = ids;
+    localStorage.setItem(LAST_USED_KEY, JSON.stringify(all));
+  } catch { /* ignore */ }
 }
 
 /* ---------- Scoring: approximate GED-style scaled score (100-200) ---------- */
@@ -232,10 +257,12 @@ const App = {
   /* ---------- EXAM FLOW ---------- */
   startExam(subjectKey) {
     const meta = SUBJECTS[subjectKey];
-    const sections = meta.sections.map(sec => ({
-      ...sec,
-      questions: pickRandom(sec.key, sec.count)
-    }));
+    const sections = meta.sections.map(sec => {
+      const excludeIds = getLastUsed(sec.key);
+      const questions = pickRandom(sec.key, sec.count, excludeIds);
+      setLastUsed(sec.key, questions.map(q => q.id)); // remember this set so the NEXT attempt avoids it
+      return { ...sec, questions };
+    });
     const allQuestions = sections.flatMap(sec => sec.questions.map(q => ({ ...q, sectionLabel: sec.label, calculator: sec.calculator })));
 
     this.examState = {
@@ -245,6 +272,8 @@ const App = {
       secondsLeft: meta.minutes * 60,
       startedAt: Date.now()
     };
+    clearInterval(this.timerInterval);
+    this.timerInterval = null; // reset so the timer is guaranteed to (re)start for this fresh attempt
     this.renderExamIntro();
   },
 
@@ -271,6 +300,7 @@ const App = {
 
   startTimer() {
     clearInterval(this.timerInterval);
+    this.timerInterval = null;
     this.timerInterval = setInterval(() => {
       this.examState.secondsLeft--;
       const el = document.getElementById("timerDisplay");
