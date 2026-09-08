@@ -42,17 +42,76 @@ function shuffle(arr) {
   return a;
 }
 
-function pickRandom(bankKey, count, excludeIds = []) {
-  const pool = QUESTION_BANK[bankKey] || [];
-  const fresh = pool.filter(q => !excludeIds.includes(q.id));
-  const stale = pool.filter(q => excludeIds.includes(q.id));
+/* ---------- Shuffle-bag rotation + strict no-repeat-vs-last-attempt guarantee ---------- */
+const BAG_KEY = "ged_prep_test_bag_v1";
+const LAST_USED_KEY = "ged_prep_test_last_used_v1";
 
-  // Prioritize questions NOT used last time. Only dip into the "stale" (recently used)
-  // pile if the fresh pile alone can't fill the requested count.
-  const shuffledFresh = shuffle(fresh);
-  const shuffledStale = shuffle(stale);
-  const combined = [...shuffledFresh, ...shuffledStale];
-  return combined.slice(0, Math.min(count, combined.length));
+function getBag(sectionKey, poolIds) {
+  let all = {};
+  try {
+    const raw = localStorage.getItem(BAG_KEY);
+    all = raw ? JSON.parse(raw) : {};
+  } catch { all = {}; }
+  let bag = all[sectionKey];
+  if (!bag || bag.length === 0 || !bag.every(id => poolIds.includes(id))) bag = shuffle(poolIds);
+  return bag;
+}
+function saveBag(sectionKey, bag) {
+  let all = {};
+  try {
+    const raw = localStorage.getItem(BAG_KEY);
+    all = raw ? JSON.parse(raw) : {};
+  } catch { all = {}; }
+  all[sectionKey] = bag;
+  localStorage.setItem(BAG_KEY, JSON.stringify(all));
+}
+function getLastUsed(sectionKey) {
+  try {
+    const raw = localStorage.getItem(LAST_USED_KEY);
+    const all = raw ? JSON.parse(raw) : {};
+    return all[sectionKey] || [];
+  } catch { return []; }
+}
+function setLastUsed(sectionKey, ids) {
+  try {
+    const raw = localStorage.getItem(LAST_USED_KEY);
+    const all = raw ? JSON.parse(raw) : {};
+    all[sectionKey] = ids;
+    localStorage.setItem(LAST_USED_KEY, JSON.stringify(all));
+  } catch { /* ignore */ }
+}
+
+/**
+ * Draws `count` questions for a section such that:
+ *  1) None of them were in the immediately previous attempt for this section
+ *     (guaranteed whenever pool size is at least 2x count — true for every section here).
+ *  2) Over many attempts, every question in the pool gets used before any repeats,
+ *     via a persistent rotation "bag".
+ */
+function drawFromBag(bankKey, count) {
+  const pool = QUESTION_BANK[bankKey] || [];
+  const poolIds = pool.map(q => q.id);
+  const byId = Object.fromEntries(pool.map(q => [q.id, q]));
+  const avoidIds = getLastUsed(bankKey);
+
+  let bag = getBag(bankKey, poolIds);
+  // Prioritize items NOT in the immediately previous attempt, without discarding the rest of the bag.
+  bag = [...bag.filter(id => !avoidIds.includes(id)), ...bag.filter(id => avoidIds.includes(id))];
+
+  const drawnIds = [];
+  while (drawnIds.length < count) {
+    if (bag.length === 0) {
+      let refill = shuffle(poolIds.filter(id => !drawnIds.includes(id)));
+      refill = [...refill.filter(id => !avoidIds.includes(id)), ...refill.filter(id => avoidIds.includes(id))];
+      bag = refill;
+      if (bag.length === 0) break; // pool smaller than requested count; safety stop
+    }
+    drawnIds.push(bag.shift());
+  }
+
+  saveBag(bankKey, bag);
+  setLastUsed(bankKey, drawnIds); // remember this exact set so the NEXT attempt avoids all of it
+  return drawnIds.map(id => byId[id]);
 }
 
 function formatTime(totalSeconds) {
@@ -86,23 +145,7 @@ function saveAttempt(subjectKey, attempt) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
 }
 
-/* ---------- Last-used question tracking (per section, so back-to-back attempts don't repeat) ---------- */
-const LAST_USED_KEY = "ged_prep_test_last_used_v1";
-function getLastUsed(sectionKey) {
-  try {
-    const raw = localStorage.getItem(LAST_USED_KEY);
-    const all = raw ? JSON.parse(raw) : {};
-    return all[sectionKey] || [];
-  } catch { return []; }
-}
-function setLastUsed(sectionKey, ids) {
-  try {
-    const raw = localStorage.getItem(LAST_USED_KEY);
-    const all = raw ? JSON.parse(raw) : {};
-    all[sectionKey] = ids;
-    localStorage.setItem(LAST_USED_KEY, JSON.stringify(all));
-  } catch { /* ignore */ }
-}
+/* ---------- (legacy helpers removed — replaced by the shuffle-bag system below) ---------- */
 
 /* ---------- Scoring: approximate GED-style scaled score (100-200) ---------- */
 function scaleScore(rawCorrect, rawTotal) {
@@ -258,9 +301,7 @@ const App = {
   startExam(subjectKey) {
     const meta = SUBJECTS[subjectKey];
     const sections = meta.sections.map(sec => {
-      const excludeIds = getLastUsed(sec.key);
-      const questions = pickRandom(sec.key, sec.count, excludeIds);
-      setLastUsed(sec.key, questions.map(q => q.id)); // remember this set so the NEXT attempt avoids it
+      const questions = drawFromBag(sec.key, sec.count);
       return { ...sec, questions };
     });
     const allQuestions = sections.flatMap(sec => sec.questions.map(q => ({ ...q, sectionLabel: sec.label, calculator: sec.calculator })));
