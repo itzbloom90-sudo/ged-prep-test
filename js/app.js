@@ -486,3 +486,16 @@ const App = {
 document.addEventListener("DOMContentLoaded", () => {
   App.init(document.getElementById("app"));
 });
+
+/* ---------- Defeat the browser's back/forward cache (bfcache) ----------
+   Some browsers restore a frozen snapshot of the page on back/forward navigation
+   instead of re-running the app, which can make it look like questions "repeat"
+   when really you're just looking at an old, unchanged screen. Force a fresh
+   dashboard render whenever that happens. */
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) {
+    App.renderDashboard();
+  }
+});
+// Opting the page out of bfcache eligibility entirely, as an extra safeguard.
+window.addEventListener("unload", () => {});
