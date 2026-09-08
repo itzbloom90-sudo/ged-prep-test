@@ -8,24 +8,24 @@ const SUBJECTS = {
     minutes: 115,
     passScore: 145, collegeReady: 165, collegeCredit: 175,
     sections: [
-      { key:"math_part1", label:"Part 1 — No Calculator", count:5, calculator:false },
-      { key:"math_part2", label:"Part 2 — Calculator Allowed", count:15, calculator:true }
+      { key:"math_part1", label:"Part 1 — No Calculator", count:5, calculator:false },   // pool: 25
+      { key:"math_part2", label:"Part 2 — Calculator Allowed", count:28, calculator:true } // pool: 62 (official ~41)
     ]
   },
   rla: {
     label: "Reasoning Through Language Arts",
     minutes: 150, passScore: 145, collegeReady: 165, collegeCredit: 175,
-    sections: [ { key:"rla", label:"Reading & Language", count:8, calculator:false } ] // pool: 16
+    sections: [ { key:"rla", label:"Reading & Language", count:11, calculator:false } ] // pool: 22 (official ~46 + essay, not simulated here)
   },
   science: {
     label: "Science",
     minutes: 90, passScore: 145, collegeReady: 165, collegeCredit: 175,
-    sections: [ { key:"science", label:"Science Reasoning", count:10, calculator:false } ] // pool: 20
+    sections: [ { key:"science", label:"Science Reasoning", count:15, calculator:false } ] // pool: 31 (official ~34)
   },
   social_studies: {
     label: "Social Studies",
     minutes: 70, passScore: 145, collegeReady: 165, collegeCredit: 175,
-    sections: [ { key:"social_studies", label:"Social Studies Reasoning", count:10, calculator:false } ] // pool: 17
+    sections: [ { key:"social_studies", label:"Social Studies Reasoning", count:15, calculator:false } ] // pool: 30 (official ~35)
   }
 };
 
